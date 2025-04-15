@@ -255,8 +255,9 @@ pub async fn consume_message_feed(tx: mpsc::Sender<TrayMessage>) -> Result<()> {
                                 }
                             }
                         }
-                        Ok(WsMessage::Binary(_)) => {
-                            debug!("Received binary message");
+                        Ok(WsMessage::Binary(binary)) => {
+                            debug!("Received binary message: {:?}", binary);
+                            debug!("As string: {:?}", String::from_utf8_lossy(&binary));
                         }
                         Ok(WsMessage::Ping(_)) => {
                             debug!("Received ping");
@@ -264,8 +265,8 @@ pub async fn consume_message_feed(tx: mpsc::Sender<TrayMessage>) -> Result<()> {
                         Ok(WsMessage::Pong(_)) => {
                             debug!("Received pong");
                         }
-                        Ok(WsMessage::Close(_)) => {
-                            info!("WebSocket closed");
+                        Ok(WsMessage::Close(close)) => {
+                            info!("WebSocket closed: {:?}", close);
                             break;
                         }
                         Ok(WsMessage::Frame(frame)) => {

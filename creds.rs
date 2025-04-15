@@ -60,7 +60,7 @@ impl nwg::NativeUi<LoginDialogUi> for LoginDialog {
             .flags(nwg::WindowFlags::WINDOW | nwg::WindowFlags::VISIBLE)
             .size((300, 150))
             .position((300, 300))
-            .title("Login")
+            .title("Miniover - Login")
             .build(&mut data.window)?;
             
         nwg::Label::builder()

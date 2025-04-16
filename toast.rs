@@ -4,6 +4,8 @@ use tauri_winrt_notification::{Duration, Sound, Toast};
 
 use crate::types::Message;
 
+// const AUMID: &str = "CrispyyBaconx.Miniover"; // ! idk how to do this
+
 pub fn show_notification(message: &Message) -> Result<()> {
     let title = match &message.title {
         Some(title) if !title.is_empty() => title,
@@ -15,14 +17,14 @@ pub fn show_notification(message: &Message) -> Result<()> {
         _ => None,
     };
 
-    let mut notification = Toast::new(Toast::POWERSHELL_APP_ID)
+    let mut notification = Toast::new(Toast::POWERSHELL_APP_ID) 
         .title(title)
         .text1(&message.message)
         .duration(Duration::Short);
 
     // Set sound based on message.sound if available
     if message.priority >= 1 {
-        notification = notification.sound(Some(Sound::SMS));
+        notification = notification.sound(Some(Sound::SMS)); // todo: make this use the configured sound on the message
     }
 
     // Add click action if URL is available

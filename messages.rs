@@ -1,4 +1,4 @@
-use crate::types::{Config, Message, MessagesResponse, Event};
+use crate::types::{Config, Message, MessagesResponse};
 use crate::toast;
 use anyhow::{anyhow, Result};
 use futures_util::{SinkExt, StreamExt};
@@ -7,7 +7,6 @@ use reqwest::Client;
 use std::path::Path;
 use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio::sync::mpsc;
 use tokio::time;
 use tokio_tungstenite::{
     connect_async_tls_with_config, 
@@ -191,7 +190,7 @@ async fn connect_websocket(config: &Config) -> Result<WebSocketStream<MaybeTlsSt
 }
 
 // Main function to consume message feed
-pub async fn consume_message_feed(tx: mpsc::Sender<Event>) -> Result<()> {
+pub async fn consume_message_feed() -> Result<()> {
     let config_dir = get_app_config_dir();
     let mut config = load_config(&config_dir)?;
     
@@ -254,7 +253,7 @@ pub async fn consume_message_feed(tx: mpsc::Sender<Event>) -> Result<()> {
                                         if let Err(e) = save_config(&config, &config_dir) {
                                             error!("Failed to save config: {}", e);
                                         }
-                                        tx.send(Event::Logout).await?;
+                                        // tx.send(Event::Logout).await?; // figure out some way to logout
                                         break;
                                     }
                                     'A' => {
@@ -265,7 +264,7 @@ pub async fn consume_message_feed(tx: mpsc::Sender<Event>) -> Result<()> {
                                         if let Err(e) = save_config(&config, &config_dir) {
                                             error!("Failed to save config: {}", e);
                                         }
-                                        tx.send(Event::Logout).await?;
+                                        // tx.send(Event::Logout).await?; // figure out some way to logout
                                         // ! maybe add a toast notification here saying "Session closed, device logged in elsewhere" or something
                                         break;
                                     }

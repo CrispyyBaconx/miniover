@@ -8,6 +8,8 @@ pub struct LoginDialog {
     window: nwg::Window,
     layout: nwg::GridLayout,
     
+    text_box: nwg::TextBox,
+    
     email_label: nwg::Label,
     email_input: nwg::TextInput,
     
@@ -63,6 +65,11 @@ impl nwg::NativeUi<LoginDialogUi> for LoginDialog {
             .title("Miniover - Login")
             .build(&mut data.window)?;
             
+        nwg::TextBox::builder()
+            .text("Welcome to Miniover! Please enter your Pushover credentials to continue. Note: If you already have linked miniover as a client, you won't be able to login (remove the device from Pushover.net)")
+            .parent(&data.window)
+            .build(&mut data.text_box)?;
+
         nwg::Label::builder()
             .text("Email:")
             .parent(&data.window)

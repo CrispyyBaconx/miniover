@@ -13,78 +13,64 @@ pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<M
 
     debug!("Tray events consumer started");
     
-    // Check for events in a loop with timeout to see if channel is working
-    let mut counter = 0;
-    loop {
-        match tokio::time::timeout(tokio::time::Duration::from_secs(5), rx.recv()).await {
-            Ok(Some(message)) => {
-                debug!("Received event on tray thread: {:?}", message);
-                match message {
-                    Event::Quit => {
-                        info!("Quitting application");
-                        std::process::exit(0);
-                    }
-                    Event::ToggleStartOnBoot => {
-                        info!("Toggling start on boot");
-                        let app_state_clone_inner = app_state.clone();
-                        let config_dir_clone = config_dir.clone();
-                        
-                        let mut state = app_state_clone_inner.lock().await;
-                        state.config.start_on_boot = !state.config.start_on_boot;
-                        
-                        if let Err(e) = save_config(&state.config, &config_dir_clone) {
-                            error!("Failed to save config: {}", e);
-                        }
-                        
-                        if let Err(e) = check_for_autorun().await {
-                            error!("Failed to update autorun: {}", e);
-                        }
-                        
-                        // Notify user
-                        let status = if state.config.start_on_boot { "enabled" } else { "disabled" };
-                        toast::show_success_notification("Autostart Updated", &format!("Start on boot {}", status)).ok();
-                    }
-                    Event::ShowAbout => {
-                        toast::show_success_notification(
-                            "About Miniover",
-                            "Miniover v0.1.0\nA minimal Pushover client for Windows\n\nVibe Coded by: Claude (and a bit of dev by me - CrispyyBaconx)\nGitHub: github.com/CrispyyBaconx/miniover"
-                        ).ok();
-                    }
-                    Event::Logout => {
-                        info!("Logging out");
-                        let app_state_clone_inner = app_state.clone();
-                        let config_dir_clone = config_dir.clone();
-                        
-                        let mut state = app_state_clone_inner.lock().await;
-                        // Clear credentials
-                        state.config.user_key = None;
-                        state.config.secret = None;
-                        state.config.device_id = None;
-                        
-                        if let Err(e) = save_config(&state.config, &config_dir_clone) {
-                            error!("Failed to save config during logout: {}", e);
-                        }
-                        
-                        // Notify user
-                        toast::show_success_notification("Logged Out", "You have been logged out of Pushover").ok();
-                        
-                        // App should restart or show login screen
-                        // For simplicity, just exit and let the user restart
-                        std::process::exit(0);
-                    }
+    while let Some(message) = rx.recv().await {
+        debug!("Received event on tray thread: {:?}", message);
+        match message {
+            Event::Quit => {
+                info!("Quitting application");
+                std::process::exit(0);
+            }
+            Event::ToggleStartOnBoot => {
+                info!("Toggling start on boot");
+                let app_state_clone_inner = app_state.clone();
+                let config_dir_clone = config_dir.clone();
+                
+                let mut state = app_state_clone_inner.lock().await;
+                state.config.start_on_boot = !state.config.start_on_boot;
+                
+                if let Err(e) = save_config(&state.config, &config_dir_clone) {
+                    error!("Failed to save config: {}", e);
                 }
-            },
-            Ok(None) => {
-                error!("Channel closed unexpectedly!");
-                break;
-            },
-            Err(_) => {
-                counter += 1;
-                debug!("Tray handler waiting for events... ({})", counter);
-                // Continue waiting
+                
+                if let Err(e) = check_for_autorun().await {
+                    error!("Failed to update autorun: {}", e);
+                }
+                
+                // Notify user
+                let status = if state.config.start_on_boot { "enabled" } else { "disabled" };
+                toast::show_success_notification("Autostart Updated", &format!("Start on boot {}", status)).ok();
+            }
+            Event::ShowAbout => {
+                toast::show_success_notification(
+                    "About Miniover",
+                    "Miniover v0.1.0\nA minimal Pushover client for Windows\n\nVibe Coded by: CrispyyBaconx & Claude)\nGitHub: github.com/CrispyyBaconx/miniover"
+                ).ok();
+            }
+            Event::Logout => {
+                info!("Logging out");
+                let app_state_clone_inner = app_state.clone();
+                let config_dir_clone = config_dir.clone();
+                
+                let mut state = app_state_clone_inner.lock().await;
+                // Clear credentials
+                state.config.user_key = None;
+                state.config.secret = None;
+                state.config.device_id = None;
+                
+                if let Err(e) = save_config(&state.config, &config_dir_clone) {
+                    error!("Failed to save config during logout: {}", e);
+                }
+                
+                // Notify user
+                toast::show_success_notification("Logged Out", "You have been logged out of Pushover").ok();
+                
+                // App should restart or show login screen
+                // For simplicity, just exit and let the user restart
+                std::process::exit(0);
             }
         }
     }
 
+    error!("Tray event channel closed unexpectedly");
     Ok(())
 }

@@ -1,4 +1,4 @@
-// #![windows_subsystem = "windows"]
+#![windows_subsystem = "windows"]
 
 /**
  * Miniover - A minimal Pushover client for Windows
@@ -82,31 +82,15 @@ async fn main() -> Result<(), Error> {
         
         runtime.block_on(async {
             while let Ok(event) = std_rx.recv() {
-                debug!("Bridge thread received event: {:?}", event);
-                
                 // Get the tokio sender from the mutex
                 let sender = tokio_tx_clone_for_thread.lock().unwrap();
-                match sender.send(event).await {
-                    Ok(_) => debug!("Bridge successfully sent event to tokio channel"),
-                    Err(e) => error!("Bridge failed to send event: {}", e),
+                if let Err(e) = sender.send(event).await {
+                    error!("Bridge failed to send event: {}", e);
                 }
             }
             
             error!("Bridge thread receiver closed unexpectedly");
         });
-    });
-
-    // Create test event sender to verify channel works
-    let test_tx = tokio_tx.clone();
-    tokio::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-        debug!("Sending test event");
-        
-        // Send a test event directly on the tokio channel
-        match test_tx.send(Event::ShowAbout).await {
-            Ok(_) => debug!("Test event sent successfully"),
-            Err(e) => error!("Failed to send test event: {}", e),
-        }
     });
 
     // try to create the tray icon source
@@ -132,10 +116,8 @@ async fn main() -> Result<(), Error> {
 
     let toggle_startup_tx = std_tx.clone();
     tray.add_menu_item(toggle_text, move || {
-        debug!("Toggle startup clicked");
-        match toggle_startup_tx.send(Event::ToggleStartOnBoot) {
-            Ok(_) => debug!("Toggle startup event sent successfully"),
-            Err(e) => error!("Failed to send toggle startup event: {:?}", e),
+        if let Err(e) = toggle_startup_tx.send(Event::ToggleStartOnBoot) {
+            error!("Failed to send toggle startup event: {:?}", e);
         }
     })?;
 
@@ -145,10 +127,8 @@ async fn main() -> Result<(), Error> {
 
     let about_tx = std_tx.clone();
     tray.add_menu_item("About", move || {
-        debug!("About clicked");
-        match about_tx.send(Event::ShowAbout) {
-            Ok(_) => debug!("About event sent successfully"),
-            Err(e) => error!("Failed to send about event: {:?}", e),
+        if let Err(e) = about_tx.send(Event::ShowAbout) {
+            error!("Failed to send about event: {:?}", e);
         }
     })?;
 
@@ -156,10 +136,8 @@ async fn main() -> Result<(), Error> {
 
     let quit_tx = std_tx.clone();
     tray.add_menu_item("Quit", move || {
-        debug!("Quit clicked");
-        match quit_tx.send(Event::Quit) {
-            Ok(_) => debug!("Quit event sent successfully"),
-            Err(e) => error!("Failed to send quit event: {:?}", e),
+        if let Err(e) = quit_tx.send(Event::Quit) {
+            error!("Failed to send quit event: {:?}", e);
         }
     })?;
 
@@ -167,10 +145,8 @@ async fn main() -> Result<(), Error> {
 
     let logout_tx = std_tx.clone();
     tray.add_menu_item("Logout", move || {
-        debug!("Logout clicked");
-        match logout_tx.send(Event::Logout) {
-            Ok(_) => debug!("Logout event sent successfully"),
-            Err(e) => error!("Failed to send logout event: {:?}", e),
+        if let Err(e) = logout_tx.send(Event::Logout) {
+            error!("Failed to send logout event: {:?}", e);
         }
     })?;
 

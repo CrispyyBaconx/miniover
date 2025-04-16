@@ -157,7 +157,7 @@ async fn main() -> Result<(), Error> {
     // Spawn message handling with its own channel
     let message_handle = tokio::spawn(messages::consume_message_feed());
     let tray_handle = tokio::spawn(tray::consume_tray_events(tokio_rx, app_state.clone()));
-    
+
     // Wait for tasks to complete
     tokio::select! {
         result = message_handle => {

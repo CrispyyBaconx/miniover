@@ -18,6 +18,7 @@ pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<M
         match message {
             Event::Quit => {
                 info!("Quitting application");
+                toast::show_success_notification("Miniover", "Miniover has been closed successfully")?;
                 std::process::exit(0);
             }
             Event::ToggleStartOnBoot => {

@@ -1,4 +1,4 @@
-use crate::types::{Config, Message, MessagesResponse, TrayMessage};
+use crate::types::{Config, Message, MessagesResponse, Event};
 use crate::toast;
 use anyhow::{anyhow, Result};
 use futures_util::{SinkExt, StreamExt};
@@ -17,6 +17,7 @@ use tokio_tungstenite::{
     WebSocketStream
 };
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use crate::utils::{get_app_config_dir, save_config, load_config};
 
 const PUSHOVER_API_URL: &str = "https://api.pushover.net/1";
 const PUSHOVER_WS_URL: &str = "wss://client.pushover.net/push";
@@ -29,14 +30,22 @@ pub async fn download_messages(secret: &str, device_id: &str) -> Result<Vec<Mess
         "{}/messages.json?secret={}&device_id={}",
         PUSHOVER_API_URL, secret, device_id
     );
+
+    debug!("Downloading messages from: {}", url);
     
     let res = client.get(&url).send().await?;
     
     if !res.status().is_success() {
         return Err(anyhow!("Failed to download messages: {}", res.status()));
     }
+
+    debug!("Attempting to parse messages response");
+    let text = res.text().await?;
+    debug!("Messages response: {}", text);
     
-    let messages_response: MessagesResponse = res.json().await?;
+    let messages_response: MessagesResponse = serde_json::from_str(&text)?;
+
+    debug!("Messages response: {:?}", messages_response);
     
     if messages_response.status != 1 {
         return Err(anyhow!("Message download failed with status {}", messages_response.status));
@@ -111,6 +120,7 @@ async fn process_messages(config: &mut Config, config_dir: &Path) -> Result<()> 
     let device_id = config.device_id.as_ref().unwrap();
     
     // Download messages
+    debug!("Downloading messages");
     let messages = download_messages(secret, device_id).await?;
     
     if messages.is_empty() {
@@ -118,9 +128,11 @@ async fn process_messages(config: &mut Config, config_dir: &Path) -> Result<()> 
     }
     
     // Get highest message ID
+    debug!("Getting highest message ID");
     let highest_message = messages.iter().max_by_key(|m| m.id).unwrap();
     
     // Process each message
+    debug!("Processing messages");
     for message in &messages {
         // Show notification
         if let Err(e) = toast::show_notification(message) {
@@ -143,7 +155,7 @@ async fn process_messages(config: &mut Config, config_dir: &Path) -> Result<()> 
     } else {
         // Update config with last message ID
         config.last_message_id = Some(highest_message.id_str.clone());
-        crate::auth::save_config(config, config_dir)?;
+        save_config(config, config_dir)?;
     }
     
     Ok(())
@@ -179,15 +191,14 @@ async fn connect_websocket(config: &Config) -> Result<WebSocketStream<MaybeTlsSt
 }
 
 // Main function to consume message feed
-pub async fn consume_message_feed(tx: mpsc::Sender<TrayMessage>) -> Result<()> {
-    let config_dir = crate::types::get_app_config_dir();
-    let mut config = crate::auth::load_config(&config_dir)?;
+pub async fn consume_message_feed(tx: mpsc::Sender<Event>) -> Result<()> {
+    let config_dir = get_app_config_dir();
+    let mut config = load_config(&config_dir)?;
     
     // Check if we're logged in
     if config.secret.is_none() || config.device_id.is_none() {
-        info!("Not logged in, waiting for login");
-        tx.send(TrayMessage::ShowLogin).await?;
-        return Ok(());
+        panic!("Not logged in, login flow was disrupted");
+        // ! we should be logged in by now, so this is a bug
     }
     
     // Process any existing messages first (but silently)
@@ -211,53 +222,60 @@ pub async fn consume_message_feed(tx: mpsc::Sender<TrayMessage>) -> Result<()> {
                 while let Some(msg) = ws_stream.next().await {
                     match msg {
                         Ok(WsMessage::Text(text)) => {
-                            match text.as_str() {
-                                "#" => {
-                                    // Keep-alive packet, no response needed
-                                    debug!("Received keep-alive packet");
-                                }
-                                "!" => {
-                                    // New message arrived
-                                    info!("New message notification received");
-                                    if let Err(e) = process_messages(&mut config, &config_dir).await {
-                                        error!("Failed to process messages: {}", e);
-                                    }
-                                }
-                                "R" => {
-                                    // Reload request
-                                    info!("Reload request received, reconnecting...");
-                                    break;
-                                }
-                                "E" => {
-                                    // Error
-                                    error!("Permanent error received, need to re-login");
-                                    config.secret = None;
-                                    config.device_id = None;
-                                    if let Err(e) = crate::auth::save_config(&config, &config_dir) {
-                                        error!("Failed to save config: {}", e);
-                                    }
-                                    tx.send(TrayMessage::ShowLogin).await?;
-                                    break;
-                                }
-                                "A" => {
-                                    // Session closed
-                                    warn!("Session closed, device logged in elsewhere");
-                                    config.secret = None;
-                                    config.device_id = None;
-                                    if let Err(e) = crate::auth::save_config(&config, &config_dir) {
-                                        error!("Failed to save config: {}", e);
-                                    }
-                                    tx.send(TrayMessage::ShowLogin).await?;
-                                    break;
-                                }
-                                _ => {
-                                    warn!("Unknown WebSocket message: {}", text);
-                                }
-                            }
+                            debug!("Received text message: {}", text);
                         }
                         Ok(WsMessage::Binary(binary)) => {
                             debug!("Received binary message: {:?}", binary);
-                            debug!("As string: {:?}", String::from_utf8_lossy(&binary));
+                            // Convert binary to string and process commands
+                            if binary.len() == 1 {
+                                let command = binary[0] as char;
+                                match command {
+                                    '#' => {
+                                        // Keep-alive packet, no response needed
+                                        debug!("Received keep-alive packet");
+                                    }
+                                    '!' => {
+                                        // New message arrived
+                                        info!("New message notification received");
+                                        if let Err(e) = process_messages(&mut config, &config_dir).await {
+                                            error!("Failed to process messages: {}", e);
+                                        }
+                                    }
+                                    'R' => {
+                                        // Reload request
+                                        info!("Reload request received, reconnecting...");
+                                        break;
+                                    }
+                                    'E' => {
+                                        // Error
+                                        error!("Permanent error received, need to re-login");
+                                        config.secret = None;
+                                        config.device_id = None;
+                                        if let Err(e) = save_config(&config, &config_dir) {
+                                            error!("Failed to save config: {}", e);
+                                        }
+                                        tx.send(Event::Logout).await?;
+                                        break;
+                                    }
+                                    'A' => {
+                                        // Session closed
+                                        warn!("Session closed, device logged in elsewhere");
+                                        config.secret = None;
+                                        config.device_id = None;
+                                        if let Err(e) = save_config(&config, &config_dir) {
+                                            error!("Failed to save config: {}", e);
+                                        }
+                                        tx.send(Event::Logout).await?;
+                                        // ! maybe add a toast notification here saying "Session closed, device logged in elsewhere" or something
+                                        break;
+                                    }
+                                    _ => {
+                                        warn!("Unknown WebSocket command: {}", command);
+                                    }
+                                }
+                            } else {
+                                debug!("As string: {:?}", String::from_utf8_lossy(&binary));
+                            }
                         }
                         Ok(WsMessage::Ping(_)) => {
                             debug!("Received ping");

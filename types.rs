@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+
+#[derive(Debug)]
+pub struct AppState {
+    pub config: Config,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -51,7 +55,7 @@ pub struct Message {
     pub acked: i32,
     pub umid: i64,
     pub umid_str: String,
-    pub title: String,
+    pub title: Option<String>,
     pub url: Option<String>,
     pub url_title: Option<String>,
     pub sound: Option<String>,
@@ -66,17 +70,10 @@ pub struct MessagesResponse {
     pub messages: Vec<Message>,
 }
 
-pub enum TrayMessage {
+#[derive(Debug)]
+pub enum Event {
     Quit,
     ToggleStartOnBoot,
-    ShowLogin,
     ShowAbout,
+    Logout,
 }
-
-pub fn get_app_config_dir() -> PathBuf {
-    let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-    path.push("miniover");
-    std::fs::create_dir_all(&path).ok();
-    path
-}
-

@@ -5,10 +5,9 @@ use tauri_winrt_notification::{Duration, Sound, Toast};
 use crate::types::Message;
 
 pub fn show_notification(message: &Message) -> Result<()> {
-    let title = if message.title.is_empty() {
-        &message.app
-    } else {
-        &message.title
+    let title = match &message.title {
+        Some(title) if !title.is_empty() => title,
+        _ => &message.app
     };
 
     let action_on_click = match &message.url {

@@ -2,7 +2,7 @@ use crate::types::{Event, AppState};
 use crate::toast;
 use crate::utils::{get_app_config_dir, save_config, check_for_autorun};
 use anyhow::Result;
-use log::{error, info};
+use log::{error, info, debug};
 use tokio::sync::mpsc;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -12,6 +12,7 @@ pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<M
     let config_dir = get_app_config_dir();
     
     while let Some(message) = rx.recv().await {
+        debug!("Received event on tray thread: {:?}", message);
         match message {
             Event::Quit => {
                 info!("Quitting application");

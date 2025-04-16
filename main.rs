@@ -24,6 +24,7 @@ use tokio::sync::Mutex;
 use types::{Event, AppState};
 use tray_item::{IconSource, TrayItem};
 use utils::{get_app_paths, init_config};
+use std::sync::mpsc as std_mpsc;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -61,6 +62,20 @@ async fn main() -> Result<(), Error> {
         
     debug!("App state: {:?}", app_state);
 
+    // Create a standard (non-tokio) channel for tray events
+    let (std_tx, std_rx) = std_mpsc::channel::<Event>();
+
+    // Spawn a task to bridge the standard channel to the tokio channel
+    let bridge_tx = tx.clone();
+    tokio::spawn(async move {
+        while let Ok(event) = std_rx.recv() {
+            debug!("Received event: {:?}", event);
+            if let Err(e) = bridge_tx.send(event).await {
+                error!("Failed to bridge tray event: {}", e);
+            }
+        }
+    });
+
     // try to create the tray icon source
     let icon_source = IconSource::Resource("app-icon");
 
@@ -82,44 +97,32 @@ async fn main() -> Result<(), Error> {
         "Start on boot [ ]"
     };
 
-    let toggle_startup_tx = tx.clone();
+    let toggle_startup_tx = std_tx.clone();
     tray.add_menu_item(toggle_text, move || {
-        let tx = toggle_startup_tx.clone();
-        tokio::spawn(async move {
-            tx.send(Event::ToggleStartOnBoot).await.unwrap();
-        });
+        toggle_startup_tx.send(Event::ToggleStartOnBoot).unwrap();
     })?;
 
     debug!("Toggle startup menu item added successfully");
 
     tray.inner_mut().add_separator()?;
 
-    let about_tx = tx.clone();
+    let about_tx = std_tx.clone();
     tray.add_menu_item("About", move || {
-        let tx = about_tx.clone();
-        tokio::spawn(async move {
-            tx.send(Event::ShowAbout).await.unwrap();
-        });
+        about_tx.send(Event::ShowAbout).unwrap();
     })?;
 
     debug!("About menu item added successfully");
 
-    let quit_tx = tx.clone();
+    let quit_tx = std_tx.clone();
     tray.add_menu_item("Quit", move || {
-        let tx = quit_tx.clone();
-        tokio::spawn(async move {
-            tx.send(Event::Quit).await.unwrap();
-        });
+        quit_tx.send(Event::Quit).unwrap();
     })?;
 
     debug!("Quit menu item added successfully");
 
-    let logout_tx = tx.clone();
+    let logout_tx = std_tx.clone();
     tray.add_menu_item("Logout", move || {
-        let tx = logout_tx.clone();
-        tokio::spawn(async move {
-            tx.send(Event::Logout).await.unwrap();
-        });
+        logout_tx.send(Event::Logout).unwrap();
     })?;
 
     debug!("Logout menu item added successfully");
@@ -131,10 +134,10 @@ async fn main() -> Result<(), Error> {
     let tray_handle = tokio::spawn(tray::consume_tray_events(rx, app_state.clone()));
     
     // Wait for all tasks to complete (which they won't unless there's an error)
-    let _ = tokio::try_join!(
-        message_handle,
-        tray_handle
-    );
+    tokio::try_join!(
+        async { message_handle.await.unwrap() },
+        async { tray_handle.await.unwrap() }
+    )?;
 
     Ok(())
 }

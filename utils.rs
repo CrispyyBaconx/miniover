@@ -5,6 +5,7 @@ use crate::creds::get_credentials;
 use anyhow::{Result, Error};
 use std::{fs, io::Write, path::{Path, PathBuf}};
 use log::{info, error};
+use auto_launch::AutoLaunch;
 
 const CONFIG_FILENAME: &str = "config.json";
 
@@ -50,16 +51,13 @@ pub fn load_config(config_dir: &Path) -> Result<Config> {
     Ok(config)
 }
 
-pub async fn check_for_autorun() -> Result<()> {
-    use auto_launch::AutoLaunchBuilder;
+pub async fn toggle_autorun() -> Result<()> {
+    use auto_launch::AutoLaunch;
     
     let config_dir = crate::utils::get_app_config_dir();
     let config = load_config(&config_dir)?;
     
-    let auto_launch = AutoLaunchBuilder::new()
-        .set_app_name("Miniover")
-        .set_app_path(std::env::current_exe()?.to_str().unwrap())
-        .build()?;
+    let auto_launch = AutoLaunch::new("Miniover", std::env::current_exe()?.to_str().unwrap(), &[""]);
     
     match (config.start_on_boot, auto_launch.is_enabled()?) {
         (true, false) => auto_launch.enable()?,
@@ -73,6 +71,10 @@ pub async fn check_for_autorun() -> Result<()> {
 pub async fn init_config() -> Result<Config, Error> {
     let (config_dir, _) = get_app_paths();
     let mut config = load_config(&config_dir)?;
+    let auto_launch = AutoLaunch::new("Miniover", std::env::current_exe()?.to_str().unwrap(), &[""]);
+
+    // load autorun
+    config.start_on_boot = auto_launch.is_enabled()?;
     
     // Check if login is needed
     if config.user_key.is_none() || config.secret.is_none() || config.device_id.is_none() {
@@ -117,11 +119,6 @@ pub async fn init_config() -> Result<Config, Error> {
             // User cancelled login
             return Err(Error::msg("Login cancelled"));
         }
-    }
-    
-    // Ensure autorun is set correctly
-    if let Err(e) = check_for_autorun().await {
-        error!("Failed to check autorun: {}", e);
     }
     
     Ok(config)

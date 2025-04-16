@@ -1,14 +1,19 @@
 use crate::types::{Event, AppState};
 use crate::toast;
-use crate::utils::{get_app_config_dir, save_config, check_for_autorun};
+use crate::utils::{get_app_config_dir, save_config, toggle_autorun};
 use anyhow::Result;
 use log::{error, info, debug};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
+use tray_item::TrayItem;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+
+pub struct TrayContext {
+    pub tray: TrayItem,
+    pub toggle_startup_menu_item_id: u32,
+}
 
 // Main function to consume tray events
-pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<Mutex<AppState>>) -> Result<()> {
+pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<Mutex<AppState>>, mut tray_context: TrayContext) -> Result<()> {
     let config_dir = get_app_config_dir();
 
     debug!("Tray events consumer started");
@@ -33,10 +38,17 @@ pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<M
                     error!("Failed to save config: {}", e);
                 }
                 
-                if let Err(e) = check_for_autorun().await {
+                if let Err(e) = toggle_autorun().await {
                     error!("Failed to update autorun: {}", e);
                 }
-                
+
+                // update tray menu item state
+                let toggle_text = match state.config.start_on_boot {
+                    true => "Start on boot [✓]",
+                    false => "Start on boot [ ]",
+                };
+                tray_context.tray.inner_mut().set_menu_item_label(toggle_text, tray_context.toggle_startup_menu_item_id).unwrap();
+
                 // Notify user
                 let status = if state.config.start_on_boot { "enabled" } else { "disabled" };
                 toast::show_success_notification("Autostart Updated", &format!("Start on boot {}", status)).ok();
@@ -44,7 +56,7 @@ pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<M
             Event::ShowAbout => {
                 toast::show_success_notification(
                     "About Miniover",
-                    "Miniover v0.1.0\nA minimal Pushover client for Windows\n\nVibe Coded by: CrispyyBaconx & Claude)\nGitHub: github.com/CrispyyBaconx/miniover"
+                    "Miniover v0.1.0\nA minimal Pushover client for Windows\n\nVibe Coded by: CrispyyBaconx (& Claude)\nGitHub: github.com/CrispyyBaconx/miniover"
                 ).ok();
             }
             Event::Logout => {

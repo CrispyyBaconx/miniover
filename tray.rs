@@ -83,10 +83,10 @@ pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<M
             }
             Event::ShowLogs => {
                 info!("Showing logs");
-                // open the logs folder in notepad
+                // open the logs folder in explorer
                 // it looks like %APPDATA%/Roaming/miniover/logs/2025-04-28.log
-                let logs_dir = get_app_paths().1.join("logs");
-                std::process::Command::new("notepad").arg(logs_dir).spawn().unwrap();
+                let logs_dir = get_app_paths().1;
+                std::process::Command::new("explorer").arg(logs_dir).spawn().unwrap();
             }
         }
     }

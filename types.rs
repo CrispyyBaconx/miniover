@@ -74,6 +74,7 @@ pub struct MessagesResponse {
 pub enum Event {
     Quit,
     ToggleStartOnBoot,
+    ShowLogs,
     ShowAbout,
     Logout,
 }

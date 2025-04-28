@@ -124,6 +124,15 @@ async fn main() -> Result<(), Error> {
 
     tray.inner_mut().add_separator()?;
 
+    let show_logs_tx = std_tx.clone();
+    tray.add_menu_item("Show Logs", move || {
+        if let Err(e) = show_logs_tx.send(Event::ShowLogs) {
+            error!("Failed to send show logs event: {:?}", e);
+        }
+    })?;
+
+    debug!("Show logs menu item added successfully");
+
     let about_tx = std_tx.clone();
     tray.add_menu_item("About", move || {
         if let Err(e) = about_tx.send(Event::ShowAbout) {

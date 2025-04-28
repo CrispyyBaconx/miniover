@@ -1,6 +1,6 @@
 use crate::types::{Event, AppState};
 use crate::toast;
-use crate::utils::{get_app_config_dir, save_config, toggle_autorun};
+use crate::utils::{get_app_config_dir, get_app_paths, save_config, toggle_autorun};
 use anyhow::Result;
 use log::{error, info, debug};
 use tokio::sync::{mpsc, Mutex};
@@ -80,6 +80,13 @@ pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<M
                 // App should restart or show login screen
                 // For simplicity, just exit and let the user restart
                 std::process::exit(0);
+            }
+            Event::ShowLogs => {
+                info!("Showing logs");
+                // open the logs folder in notepad
+                // it looks like %APPDATA%/Roaming/miniover/logs/2025-04-28.log
+                let logs_dir = get_app_paths().1.join("logs");
+                std::process::Command::new("notepad").arg(logs_dir).spawn().unwrap();
             }
         }
     }

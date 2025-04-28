@@ -189,23 +189,23 @@ async fn connect_websocket(config: &Config) -> Result<WebSocketStream<MaybeTlsSt
     Ok(ws_stream)
 }
 
-// Main function to consume message feed
 pub async fn consume_message_feed() -> Result<()> {
     let config_dir = get_app_config_dir();
     let mut config = load_config(&config_dir)?;
     
-    // Check if we're logged in
     if config.secret.is_none() || config.device_id.is_none() {
         panic!("Not logged in, login flow was disrupted");
         // ! we should be logged in by now, so this is a bug
     }
     
-    // Process any existing messages first (but silently)
     if let Err(e) = process_messages(&mut config, &config_dir).await {
         error!("Failed to process existing messages: {}", e);
     }
     
-    // Main WebSocket loop
+    // Counter for keep-alive packets to reduce logging
+    let mut keepalive_count = 0;
+    let keepalive_log_interval = 30; // every 10 "interval" = 5 minutes (30 seconds per ping)
+    
     loop {
         // Make sure we have credentials
         if config.secret.is_none() || config.device_id.is_none() {
@@ -224,14 +224,16 @@ pub async fn consume_message_feed() -> Result<()> {
                             debug!("Received text message: {}", text);
                         }
                         Ok(WsMessage::Binary(binary)) => {
-                            debug!("Received binary message: {:?}", binary);
                             // Convert binary to string and process commands
                             if binary.len() == 1 {
                                 let command = binary[0] as char;
                                 match command {
                                     '#' => {
-                                        // Keep-alive packet, no response needed
-                                        debug!("Received keep-alive packet");
+                                        // Keep-alive packet, only log occasionally
+                                        keepalive_count += 1;
+                                        if keepalive_count % keepalive_log_interval == 0 {
+                                            debug!("Received keep-alive packet ({} received since last log)", keepalive_log_interval);
+                                        }
                                     }
                                     '!' => {
                                         // New message arrived
@@ -273,6 +275,7 @@ pub async fn consume_message_feed() -> Result<()> {
                                     }
                                 }
                             } else {
+                                debug!("Received binary message: {:?}", binary);
                                 debug!("As string: {:?}", String::from_utf8_lossy(&binary));
                             }
                         }

@@ -214,6 +214,8 @@ pub async fn consume_message_feed() -> Result<()> {
             continue;
         }
         
+        // ! look into a way to have some sort of watchdog to check if the connection is still alive every 5 minutes or so
+
         match connect_websocket(&config).await {
             Ok(mut ws_stream) => {
                 info!("Connected to Pushover WebSocket");
@@ -245,6 +247,7 @@ pub async fn consume_message_feed() -> Result<()> {
                                     'R' => {
                                         // Reload request
                                         info!("Reload request received, reconnecting...");
+                                        // ! implement reload logic
                                         break;
                                     }
                                     'E' => {

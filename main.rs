@@ -35,7 +35,7 @@ async fn main() -> Result<(), Error> {
     // Initialize logging with concrete path
     Ftail::new()
         .console(LevelFilter::Debug)
-        .daily_file(log_dir.to_str().unwrap_or("logs"), LevelFilter::Debug) 
+        .daily_file(&log_dir, LevelFilter::Debug) 
         .max_file_size(1024 * 1024 * 10) // 10MB
         .retention_days(2) // 2 days
         .init()?;

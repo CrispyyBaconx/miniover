@@ -1,0 +1,21 @@
+[Unit]
+Description=Miniover - Minimal Pushover Client
+Documentation=https://github.com/CrispyyBaconx/miniover
+# Requires a graphical session for tray icon and notifications
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.cargo/bin/miniover
+# Alternative if installed system-wide:
+# ExecStart=/usr/bin/miniover
+Restart=on-failure
+RestartSec=5
+
+# Environment for GUI applications
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=graphical-session.target
+

@@ -8,7 +8,6 @@ tokio-tungstenite = { version = "0.27.0", features = ["native-tls"] }
 tokio = { version = "1.46.1", features = ["full"] }
 auto-launch = "0.5.0"
 ftail = "0.3.0"
-tauri-winrt-notification = "0.7.2"
 reqwest = { version = "0.12.22", features = ["json"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
@@ -18,10 +17,19 @@ native-tls = "0.2.14"
 dirs = "6.0.0"
 futures-util = "0.3.31"
 open = "5.3.2"
-native-windows-gui = "1.0.13"
-tray-item = "0.10.0"
+tray-item = { version = "0.10.0", features = ["ksni"] }
 
-[build-dependencies]
+# Windows-only dependencies
+[target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.7.2"
+native-windows-gui = "1.0.13"
+
+# Linux-only dependencies
+[target.'cfg(target_os = "linux")'.dependencies]
+notify-rust = "4.11"
+
+# Windows-only build dependencies
+[target.'cfg(windows)'.build-dependencies]
 embed-resource = "3.0.2"
 
 [[bin]]

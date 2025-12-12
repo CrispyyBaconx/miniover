@@ -1,8 +1,17 @@
-use native_windows_gui::{self as nwg, NativeUi};
-use std::rc::Rc;
-use std::cell::RefCell;
-use tokio::sync::oneshot;
+// ============================================================================
+// Windows implementation using native-windows-gui
+// ============================================================================
 
+#[cfg(windows)]
+use tokio::sync::oneshot;
+#[cfg(windows)]
+use native_windows_gui::{self as nwg, NativeUi};
+#[cfg(windows)]
+use std::rc::Rc;
+#[cfg(windows)]
+use std::cell::RefCell;
+
+#[cfg(windows)]
 #[derive(Default)]
 pub struct LoginDialog {
     window: nwg::Window,
@@ -22,11 +31,13 @@ pub struct LoginDialog {
     result_sender: RefCell<Option<oneshot::Sender<Option<(String, String)>>>>,
 }
 
+#[cfg(windows)]
 pub struct LoginDialogUi {
     inner: Rc<LoginDialog>,
     default_handler: RefCell<Option<nwg::EventHandler>>,
 }
 
+#[cfg(windows)]
 impl LoginDialog {
     fn submit(&self) {
         let email = self.email_input.text();
@@ -55,6 +66,7 @@ impl LoginDialog {
     }
 }
 
+#[cfg(windows)]
 impl nwg::NativeUi<LoginDialogUi> for LoginDialog {
     fn build_ui(mut data: LoginDialog) -> Result<LoginDialogUi, nwg::NwgError> {
         // Controls
@@ -140,6 +152,7 @@ impl nwg::NativeUi<LoginDialogUi> for LoginDialog {
     }
 }
 
+#[cfg(windows)]
 impl Drop for LoginDialogUi {
     fn drop(&mut self) {
         let handler = self.default_handler.borrow();
@@ -149,7 +162,7 @@ impl Drop for LoginDialogUi {
     }
 }
 
-// Function to show the dialog and get credentials asynchronously
+#[cfg(windows)]
 pub async fn get_credentials() -> Option<(String, String)> {
     let (tx, rx) = oneshot::channel();
     
@@ -167,4 +180,53 @@ pub async fn get_credentials() -> Option<(String, String)> {
     
     // Wait for the result from the GUI thread
     rx.await.unwrap_or(None)
+}
+
+// ============================================================================
+// Linux implementation using terminal stdin
+// ============================================================================
+
+#[cfg(target_os = "linux")]
+use std::io::{self, Write};
+
+#[cfg(target_os = "linux")]
+pub async fn get_credentials() -> Option<(String, String)> {
+    // Run the blocking stdin operations in a separate thread
+    let result = tokio::task::spawn_blocking(|| {
+        println!("\n=== Miniover Login ===");
+        println!("Welcome to Miniover! Please enter your Pushover credentials.");
+        println!("Note: If you already have linked miniover as a client, you won't be able to login");
+        println!("(remove the device from Pushover.net first)\n");
+        
+        // Get email
+        print!("Email: ");
+        io::stdout().flush().ok()?;
+        
+        let mut email = String::new();
+        io::stdin().read_line(&mut email).ok()?;
+        let email = email.trim().to_string();
+        
+        if email.is_empty() {
+            println!("Login cancelled.");
+            return None;
+        }
+        
+        // Get password (note: this won't hide the password in terminal)
+        // For better security, consider using the `rpassword` crate
+        print!("Password: ");
+        io::stdout().flush().ok()?;
+        
+        let mut password = String::new();
+        io::stdin().read_line(&mut password).ok()?;
+        let password = password.trim().to_string();
+        
+        if password.is_empty() {
+            println!("Login cancelled.");
+            return None;
+        }
+        
+        Some((email, password))
+    }).await;
+    
+    result.unwrap_or(None)
 }

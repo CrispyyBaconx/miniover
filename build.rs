@@ -1,8 +1,10 @@
-use std::io;
-use embed_resource::compile;
-
-fn main() -> io::Result<()> {
-    compile("miniover-manifest.rc", embed_resource::NONE).manifest_required().unwrap();
-
-    Ok(())
+fn main() {
+    // Only embed Windows resources on Windows
+    #[cfg(windows)]
+    {
+        use embed_resource::compile;
+        compile("miniover-manifest.rc", embed_resource::NONE)
+            .manifest_required()
+            .unwrap();
+    }
 }

@@ -29,6 +29,7 @@ native-windows-gui = "1.0.13"
 notify-rust = "4.11"
 tray-item = { version = "0.10.0", features = ["ksni"] }
 rpassword = "7.3"
+gtk4 = "0.10.3"
 
 # Build dependencies (not target-specific to support cross-compilation)
 [build-dependencies]

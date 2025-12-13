@@ -186,55 +186,201 @@ pub async fn get_credentials() -> Option<(String, String)> {
 }
 
 // ============================================================================
-// Linux implementation using terminal stdin
+// Linux implementation using GTK4 with terminal fallback
 // ============================================================================
 
 #[cfg(target_os = "linux")]
+use tokio::sync::oneshot;
+#[cfg(target_os = "linux")]
 use std::io::{self, Write, IsTerminal};
+#[cfg(target_os = "linux")]
+use std::sync::mpsc as std_mpsc;
+
+#[cfg(target_os = "linux")]
+use gtk4::prelude::*;
+#[cfg(target_os = "linux")]
+use gtk4::{Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, Orientation, PasswordEntry};
 
 #[cfg(target_os = "linux")]
 pub async fn get_credentials() -> Option<(String, String)> {
-    // Run the blocking stdin operations in a separate thread
-    let result = tokio::task::spawn_blocking(|| {
-        // Check if we have a terminal for interactive input
-        // This prevents blocking/failing when started under systemd without a TTY
-        if !io::stdin().is_terminal() {
-            eprintln!("No terminal available. Run `miniover` in a terminal once to configure credentials.");
-            return None;
-        }
-
-        println!("\n=== Miniover Login ===");
-        println!("Welcome to Miniover! Please enter your Pushover credentials.");
-        println!("Note: If you already have linked miniover as a client, you won't be able to login");
-        println!("(remove the device from Pushover.net first)\n");
-        
-        // Get email
-        print!("Email: ");
-        io::stdout().flush().ok()?;
-        
-        let mut email = String::new();
-        io::stdin().read_line(&mut email).ok()?;
-        let email = email.trim().to_string();
-        
-        if email.is_empty() {
-            println!("Login cancelled.");
-            return None;
-        }
-        
-        // Get password securely (input is not echoed to terminal)
-        print!("Password: ");
-        io::stdout().flush().ok()?;
-        
-        let password = rpassword::read_password().ok()?;
-        let password = password.trim().to_string();
-        
-        if password.is_empty() {
-            println!("Login cancelled.");
-            return None;
-        }
-        
-        Some((email, password))
-    }).await;
+    let (tx, rx) = oneshot::channel();
     
-    result.unwrap_or(None)
+    // Try GTK GUI first, fall back to terminal if it fails
+    std::thread::spawn(move || {
+        if let Some(result) = try_gtk_dialog() {
+            let _ = tx.send(Some(result));
+        } else if let Some(result) = try_terminal_fallback() {
+            let _ = tx.send(Some(result));
+        } else {
+            let _ = tx.send(None);
+        }
+    });
+    
+    rx.await.unwrap_or(None)
+}
+
+#[cfg(target_os = "linux")]
+fn try_gtk_dialog() -> Option<(String, String)> {
+    // Check if we have a display available
+    if std::env::var("DISPLAY").is_err() && std::env::var("WAYLAND_DISPLAY").is_err() {
+        return None;
+    }
+
+    let (result_tx, result_rx) = std_mpsc::channel::<Option<(String, String)>>();
+    
+    let app = Application::builder()
+        .application_id("com.miniover.login")
+        .build();
+    
+    let result_tx_clone = result_tx.clone();
+    app.connect_activate(move |app| {
+        let window = ApplicationWindow::builder()
+            .application(app)
+            .title("Miniover - Login")
+            .default_width(400)
+            .default_height(250)
+            .resizable(false)
+            .build();
+        
+        // Main vertical container
+        let main_box = GtkBox::new(Orientation::Vertical, 12);
+        main_box.set_margin_top(20);
+        main_box.set_margin_bottom(20);
+        main_box.set_margin_start(20);
+        main_box.set_margin_end(20);
+        
+        // Welcome message
+        let welcome_label = Label::new(Some(
+            "Welcome to Miniover!\n\nPlease enter your Pushover credentials.\n\
+            Note: If you already have linked miniover as a client,\n\
+            you won't be able to login (remove the device from Pushover.net first)"
+        ));
+        welcome_label.set_wrap(true);
+        welcome_label.set_justify(gtk4::Justification::Center);
+        main_box.append(&welcome_label);
+        
+        // Email row
+        let email_box = GtkBox::new(Orientation::Horizontal, 8);
+        let email_label = Label::new(Some("Email:"));
+        email_label.set_width_chars(10);
+        email_label.set_xalign(1.0);
+        let email_entry = Entry::new();
+        email_entry.set_hexpand(true);
+        email_entry.set_placeholder_text(Some("your@email.com"));
+        email_box.append(&email_label);
+        email_box.append(&email_entry);
+        main_box.append(&email_box);
+        
+        // Password row
+        let password_box = GtkBox::new(Orientation::Horizontal, 8);
+        let password_label = Label::new(Some("Password:"));
+        password_label.set_width_chars(10);
+        password_label.set_xalign(1.0);
+        let password_entry = PasswordEntry::new();
+        password_entry.set_hexpand(true);
+        password_entry.set_show_peek_icon(true);
+        password_box.append(&password_label);
+        password_box.append(&password_entry);
+        main_box.append(&password_box);
+        
+        // Button row
+        let button_box = GtkBox::new(Orientation::Horizontal, 8);
+        button_box.set_halign(gtk4::Align::End);
+        button_box.set_margin_top(12);
+        
+        let cancel_button = Button::with_label("Cancel");
+        let login_button = Button::with_label("Login");
+        login_button.add_css_class("suggested-action");
+        
+        button_box.append(&cancel_button);
+        button_box.append(&login_button);
+        main_box.append(&button_box);
+        
+        window.set_child(Some(&main_box));
+        
+        // Clone for closures
+        let result_tx_login = result_tx_clone.clone();
+        let result_tx_cancel = result_tx_clone.clone();
+        let result_tx_close = result_tx_clone.clone();
+        
+        let email_entry_clone = email_entry.clone();
+        let password_entry_clone = password_entry.clone();
+        let window_clone = window.clone();
+        
+        // Login button handler
+        login_button.connect_clicked(move |_| {
+            let email = email_entry_clone.text().to_string();
+            let password = password_entry_clone.text().to_string();
+            
+            if !email.is_empty() && !password.is_empty() {
+                let _ = result_tx_login.send(Some((email, password)));
+            } else {
+                let _ = result_tx_login.send(None);
+            }
+            window_clone.close();
+        });
+        
+        // Cancel button handler
+        let window_clone2 = window.clone();
+        cancel_button.connect_clicked(move |_| {
+            let _ = result_tx_cancel.send(None);
+            window_clone2.close();
+        });
+        
+        // Window close handler
+        window.connect_close_request(move |_| {
+            let _ = result_tx_close.send(None);
+            gtk4::glib::Propagation::Proceed
+        });
+        
+        window.present();
+    });
+    
+    // Run the GTK application - this blocks until the window is closed
+    let args: Vec<String> = vec![];
+    app.run_with_args(&args);
+    
+    // Get the result
+    result_rx.try_recv().ok().flatten()
+}
+
+#[cfg(target_os = "linux")]
+fn try_terminal_fallback() -> Option<(String, String)> {
+    // Check if we have a terminal for interactive input
+    if !io::stdin().is_terminal() {
+        eprintln!("No terminal or display available. Run `miniover` in a terminal or graphical session to configure credentials.");
+        return None;
+    }
+
+    println!("\n=== Miniover Login ===");
+    println!("Welcome to Miniover! Please enter your Pushover credentials.");
+    println!("Note: If you already have linked miniover as a client, you won't be able to login");
+    println!("(remove the device from Pushover.net first)\n");
+    
+    // Get email
+    print!("Email: ");
+    io::stdout().flush().ok()?;
+    
+    let mut email = String::new();
+    io::stdin().read_line(&mut email).ok()?;
+    let email = email.trim().to_string();
+    
+    if email.is_empty() {
+        println!("Login cancelled.");
+        return None;
+    }
+    
+    // Get password securely (input is not echoed to terminal)
+    print!("Password: ");
+    io::stdout().flush().ok()?;
+    
+    let password = rpassword::read_password().ok()?;
+    let password = password.trim().to_string();
+    
+    if password.is_empty() {
+        println!("Login cancelled.");
+        return None;
+    }
+    
+    Some((email, password))
 }

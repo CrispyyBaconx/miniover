@@ -56,7 +56,7 @@ pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<M
             Event::ShowAbout => {
                 toast::show_success_notification(
                     "About Miniover",
-                    "Miniover v0.1.0\nA minimal Pushover client for Windows\n\nVibe Coded by: CrispyyBaconx (& Claude)\nGitHub: github.com/CrispyyBaconx/miniover"
+                    "Miniover v0.1.0\nA minimal Pushover client\n\nVibe Coded by: CrispyyBaconx (& Claude)\nGitHub: github.com/CrispyyBaconx/miniover"
                 ).ok();
             }
             Event::Logout => {
@@ -83,10 +83,12 @@ pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<M
             }
             Event::ShowLogs => {
                 info!("Showing logs");
-                // open the logs folder in explorer
-                // it looks like %APPDATA%/Roaming/miniover/logs/2025-04-28.log
                 let logs_dir = get_app_paths().1;
-                std::process::Command::new("explorer").arg(logs_dir).spawn().unwrap();
+                
+                // Open logs directory in system file manager
+                if let Err(e) = open::that(&logs_dir) {
+                    error!("Failed to open logs directory: {}", e);
+                }
             }
         }
     }

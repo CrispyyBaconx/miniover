@@ -1,0 +1,31 @@
+[Unit]
+Description=Miniover - Minimal Pushover Client
+Documentation=https://github.com/CrispyyBaconx/miniover
+# Requires a graphical session for tray icon and notifications
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.cargo/bin/miniover
+# Alternative if installed system-wide:
+# ExecStart=/usr/bin/miniover
+Restart=on-failure
+RestartSec=5
+
+# Environment setup for GUI applications:
+# The service inherits environment from the user session. For tray/notifications
+# to work properly on both X11 and Wayland, ensure your session exports the
+# necessary variables to the systemd user manager:
+#
+#   systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP DBUS_SESSION_BUS_ADDRESS
+#
+# Alternatively, create an EnvironmentFile with custom values:
+#   EnvironmentFile=%h/.config/miniover/environment
+#
+# Example environment file contents:
+#   DISPLAY=:0
+#   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+
+[Install]
+WantedBy=default.target

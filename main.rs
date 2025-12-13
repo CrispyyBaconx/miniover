@@ -1,10 +1,10 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 /**
- * Miniover - A minimal Pushover client for Windows
+ * Miniover - A minimal Pushover client for Windows and Linux
  * - System tray integration
- * - Windows toast notifications for Pushover messages
- * - Auto-start on Windows boot option
+ * - Desktop notifications for Pushover messages
+ * - Auto-start on boot option
  */
 
 mod auth;
@@ -93,8 +93,18 @@ async fn main() -> Result<(), Error> {
         });
     });
 
-    // try to create the tray icon source
+    // Platform-specific tray icon source
+    #[cfg(windows)]
     let icon_source = IconSource::Resource("app-icon");
+    
+    // On Linux with ksni, Resource refers to an icon theme name
+    // Use a common system icon as fallback, or "miniover" if installed in icon theme
+    #[cfg(target_os = "linux")]
+    let icon_source = IconSource::Resource("miniover");
+
+    // Fail compilation on unsupported targets with a clear error message
+    #[cfg(not(any(windows, target_os = "linux")))]
+    compile_error!("Unsupported target OS: only Windows and Linux are supported");
 
     // Create menu
     let mut tray = TrayItem::new(

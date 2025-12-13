@@ -60,22 +60,23 @@ cargo build --release
 cargo install --path .
 ```
 
-2. Enable autostart with systemd (user service):
+2. Install the systemd user service:
 ```bash
 # Copy the service file
 mkdir -p ~/.config/systemd/user
 cp miniover.service ~/.config/systemd/user/
 
-# Enable and start the service
+# Reload systemd
 systemctl --user daemon-reload
-systemctl --user enable miniover.service
+
+# Start miniover now (optional)
 systemctl --user start miniover.service
 
 # Check status
 systemctl --user status miniover.service
 ```
 
-Alternatively, use the tray menu's "Start on boot" option which uses `auto-launch`.
+3. Use the tray menu's "Start on boot" option to enable/disable autostart. This controls the systemd user service directly.
 
 ## Configuration
 

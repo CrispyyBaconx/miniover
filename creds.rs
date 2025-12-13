@@ -98,7 +98,7 @@ impl nwg::NativeUi<LoginDialogUi> for LoginDialog {
             
         nwg::TextInput::builder()
             .parent(&data.window)
-            .flags(nwg::TextInputFlags::VISIBLE)
+            .password(Some('*'))
             .build(&mut data.password_input)?;
             
         nwg::Button::builder()
@@ -134,6 +134,9 @@ impl nwg::NativeUi<LoginDialogUi> for LoginDialog {
         let handle_events = move |evt, _evt_data, handle| {
             if let Some(ui) = event_ui.upgrade() {
                 match evt {
+                    nwg::Event::OnWindowClose => {
+                        ui.cancel();
+                    }
                     nwg::Event::OnButtonClick => {
                         if &handle == &ui.login_button {
                             ui.submit();
@@ -187,12 +190,19 @@ pub async fn get_credentials() -> Option<(String, String)> {
 // ============================================================================
 
 #[cfg(target_os = "linux")]
-use std::io::{self, Write};
+use std::io::{self, Write, IsTerminal};
 
 #[cfg(target_os = "linux")]
 pub async fn get_credentials() -> Option<(String, String)> {
     // Run the blocking stdin operations in a separate thread
     let result = tokio::task::spawn_blocking(|| {
+        // Check if we have a terminal for interactive input
+        // This prevents blocking/failing when started under systemd without a TTY
+        if !io::stdin().is_terminal() {
+            eprintln!("No terminal available. Run `miniover` in a terminal once to configure credentials.");
+            return None;
+        }
+
         println!("\n=== Miniover Login ===");
         println!("Welcome to Miniover! Please enter your Pushover credentials.");
         println!("Note: If you already have linked miniover as a client, you won't be able to login");

@@ -30,8 +30,8 @@ notify-rust = "4.11"
 tray-item = { version = "0.10.0", features = ["ksni"] }
 rpassword = "7.3"
 
-# Windows-only build dependencies
-[target.'cfg(windows)'.build-dependencies]
+# Build dependencies (not target-specific to support cross-compilation)
+[build-dependencies]
 embed-resource = "3.0.2"
 
 [[bin]]

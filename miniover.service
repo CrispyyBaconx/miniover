@@ -13,9 +13,19 @@ ExecStart=%h/.cargo/bin/miniover
 Restart=on-failure
 RestartSec=5
 
-# Environment for GUI applications
-Environment=DISPLAY=:0
+# Environment setup for GUI applications:
+# The service inherits environment from the user session. For tray/notifications
+# to work properly on both X11 and Wayland, ensure your session exports the
+# necessary variables to the systemd user manager:
+#
+#   systemctl --user import-environment DISPLAY WAYLAND_DISPLAY XDG_CURRENT_DESKTOP DBUS_SESSION_BUS_ADDRESS
+#
+# Alternatively, create an EnvironmentFile with custom values:
+#   EnvironmentFile=%h/.config/miniover/environment
+#
+# Example environment file contents:
+#   DISPLAY=:0
+#   DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 
 [Install]
-WantedBy=graphical-session.target
-
+WantedBy=default.target

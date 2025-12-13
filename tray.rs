@@ -85,15 +85,9 @@ pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<M
                 info!("Showing logs");
                 let logs_dir = get_app_paths().1;
                 
-                // Platform-specific file manager
-                #[cfg(windows)]
-                {
-                    std::process::Command::new("explorer").arg(&logs_dir).spawn().ok();
-                }
-                
-                #[cfg(target_os = "linux")]
-                {
-                    std::process::Command::new("xdg-open").arg(&logs_dir).spawn().ok();
+                // Open logs directory in system file manager
+                if let Err(e) = open::that(&logs_dir) {
+                    error!("Failed to open logs directory: {}", e);
                 }
             }
         }

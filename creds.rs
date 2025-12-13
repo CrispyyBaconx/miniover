@@ -211,13 +211,11 @@ pub async fn get_credentials() -> Option<(String, String)> {
             return None;
         }
         
-        // Get password (note: this won't hide the password in terminal)
-        // For better security, consider using the `rpassword` crate
+        // Get password securely (input is not echoed to terminal)
         print!("Password: ");
         io::stdout().flush().ok()?;
         
-        let mut password = String::new();
-        io::stdin().read_line(&mut password).ok()?;
+        let password = rpassword::read_password().ok()?;
         let password = password.trim().to_string();
         
         if password.is_empty() {

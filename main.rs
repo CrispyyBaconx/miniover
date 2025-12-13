@@ -102,6 +102,10 @@ async fn main() -> Result<(), Error> {
     #[cfg(target_os = "linux")]
     let icon_source = IconSource::Resource("miniover");
 
+    // Fail compilation on unsupported targets with a clear error message
+    #[cfg(not(any(windows, target_os = "linux")))]
+    compile_error!("Unsupported target OS: only Windows and Linux are supported");
+
     // Create menu
     let mut tray = TrayItem::new(
         "Miniover",

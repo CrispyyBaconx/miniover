@@ -109,14 +109,17 @@ pub fn show_notification(message: &Message) -> Result<()> {
             notification.action("open", "Open URL");
             let url_clone = url.clone();
             
-            // Show and handle the action
+            // Show notification and spawn detached thread for action handling
+            // This avoids blocking the Tokio runtime thread
             let handle = notification.show()?;
-            handle.wait_for_action(|action| {
-                if action == "open" {
-                    if let Err(e) = open::that(&url_clone) {
-                        error!("Failed to open URL: {}", e);
+            std::thread::spawn(move || {
+                handle.wait_for_action(|action| {
+                    if action == "open" {
+                        if let Err(e) = open::that(&url_clone) {
+                            error!("Failed to open URL: {}", e);
+                        }
                     }
-                }
+                });
             });
             return Ok(());
         }

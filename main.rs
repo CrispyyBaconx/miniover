@@ -97,10 +97,35 @@ async fn main() -> Result<(), Error> {
     #[cfg(windows)]
     let icon_source = IconSource::Resource("app-icon");
     
-    // On Linux with ksni, Resource refers to an icon theme name
-    // Use a common system icon as fallback, or "miniover" if installed in icon theme
+    // On Linux, embed the icon in the binary and decode to RGBA data
     #[cfg(target_os = "linux")]
-    let icon_source = IconSource::Resource("miniover");
+    let icon_source = {
+        use image::GenericImageView;
+        
+        // Embed the PNG icon at compile time
+        const ICON_PNG: &[u8] = include_bytes!("icon.png");
+        
+        // Decode PNG to RGBA pixels
+        match image::load_from_memory(ICON_PNG) {
+            Ok(img) => {
+                let (width, height) = img.dimensions();
+                let rgba = img.into_rgba8();
+                let data = rgba.into_raw();
+                
+                debug!("Tray icon loaded: {}x{}", width, height);
+                IconSource::Data {
+                    width: width as i32,
+                    height: height as i32,
+                    data,
+                }
+            }
+            Err(e) => {
+                error!("Failed to decode embedded icon: {}, using fallback", e);
+                // Fallback to a common system icon
+                IconSource::Resource("dialog-information")
+            }
+        }
+    };
 
     // Fail compilation on unsupported targets with a clear error message
     #[cfg(not(any(windows, target_os = "linux")))]

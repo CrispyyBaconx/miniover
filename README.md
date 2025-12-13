@@ -27,14 +27,14 @@ A minimal production-ready Pushover client for Windows and Linux.
 ### Linux Dependencies (Arch Linux)
 
 ```bash
-# Required for system tray support
-sudo pacman -S libappindicator-gtk3
+# Required for GTK4 login dialog and system tray support
+sudo pacman -S gtk4 libappindicator-gtk3
 
 # Required for notifications (usually pre-installed)
 sudo pacman -S libnotify
 ```
 
-For other distros, install the equivalent packages for `libappindicator` and `libnotify`.
+For other distros, install the equivalent packages for `gtk4`, `libappindicator`, and `libnotify`.
 
 ## Building from Source
 
@@ -60,13 +60,7 @@ cargo build --release
 cargo install --path .
 ```
 
-2. (Optional) Copy an icon for the tray:
-```bash
-mkdir -p ~/.config/miniover
-# Copy a 48x48 PNG icon to ~/.config/miniover/icon.png
-```
-
-3. Enable autostart with systemd (user service):
+2. Enable autostart with systemd (user service):
 ```bash
 # Copy the service file
 mkdir -p ~/.config/systemd/user

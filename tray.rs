@@ -84,10 +84,41 @@ pub async fn consume_tray_events(mut rx: mpsc::Receiver<Event>, app_state: Arc<M
             Event::ShowLogs => {
                 info!("Showing logs");
                 let logs_dir = get_app_paths().1;
+                info!("Logs directory: {:?}", logs_dir);
+                
+                // Ensure the directory exists
+                if !logs_dir.exists() {
+                    error!("Logs directory does not exist: {:?}", logs_dir);
+                    toast::show_error_notification("Logs Not Found", &format!("Logs directory does not exist: {:?}", logs_dir)).ok();
+                    continue;
+                }
                 
                 // Open logs directory in system file manager
-                if let Err(e) = open::that(&logs_dir) {
-                    error!("Failed to open logs directory: {}", e);
+                #[cfg(target_os = "linux")]
+                {
+                    use std::process::Command;
+                    // Try xdg-open first, fall back to common file managers
+                    let result = Command::new("xdg-open")
+                        .arg(&logs_dir)
+                        .spawn()
+                        .or_else(|_| Command::new("nautilus").arg(&logs_dir).spawn())
+                        .or_else(|_| Command::new("dolphin").arg(&logs_dir).spawn())
+                        .or_else(|_| Command::new("thunar").arg(&logs_dir).spawn())
+                        .or_else(|_| Command::new("nemo").arg(&logs_dir).spawn())
+                        .or_else(|_| Command::new("pcmanfm").arg(&logs_dir).spawn());
+                    
+                    if let Err(e) = result {
+                        error!("Failed to open logs directory: {}", e);
+                        toast::show_error_notification("Failed to Open Logs", &format!("Could not open: {:?}\nError: {}", logs_dir, e)).ok();
+                    }
+                }
+                
+                #[cfg(windows)]
+                {
+                    if let Err(e) = open::that(&logs_dir) {
+                        error!("Failed to open logs directory: {}", e);
+                        toast::show_error_notification("Failed to Open Logs", &format!("Could not open: {:?}", logs_dir)).ok();
+                    }
                 }
             }
         }
